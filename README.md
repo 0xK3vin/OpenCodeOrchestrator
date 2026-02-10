@@ -4,7 +4,7 @@
 
 <p><strong>Route every task to a specialist instead of forcing one assistant to do everything.</strong></p>
 
-![Installs](https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2F0xK3vin%2FOpenCodeOrchestrator&count_bg=%2379C83D&title_bg=%23555555&icon=&icon_color=%23E7E7E7&title=installs&edge_flat=false)
+![Views](https://hitscounter.dev/api/hit?url=https%3A%2F%2Fgithub.com%2F0xK3vin%2FOpenCodeOrchestrator&count_bg=%2379C83D&title_bg=%23555555&icon=&icon_color=%23E7E7E7&title=views&edge_flat=false)
 
 <p>
   <a href="#quick-start">Install</a> •
