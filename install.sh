@@ -11,6 +11,9 @@ NC='\033[0m'
 CONFIG_DIR="$HOME/.config/opencode"
 BASE_URL="https://raw.githubusercontent.com/0xK3vin/OpenCodeOrchestrator/main"
 
+# anonymous install counter
+curl -fsSL "https://hits.seeyoufarm.com/api/count/incr/badge.svg?url=https%3A%2F%2Fgithub.com%2F0xK3vin%2FOpenCodeOrchestrator%2Finstall&count_bg=%2379C83D&title_bg=%23555555&icon=&icon_color=%23E7E7E7&title=installs&edge_flat=false" > /dev/null 2>&1 &
+
 log_info() {
   printf "%b\n" "${BLUE}[info]${NC} $1"
 }
