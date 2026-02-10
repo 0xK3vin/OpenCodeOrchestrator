@@ -9,7 +9,7 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 CONFIG_DIR="$HOME/.config/opencode"
-BASE_URL="https://raw.githubusercontent.com/0xkevin/OpenCodeOrchastrator/main"
+BASE_URL="https://raw.githubusercontent.com/0xK3vin/OpenCodeOrchastrator/main"
 
 log_info() {
   printf "%b\n" "${BLUE}[info]${NC} $1"
@@ -95,8 +95,18 @@ if [[ -f "$CONFIG_DIR/package.json" ]]; then
   fi
 fi
 
+printf "\nWould you like to configure agent models now? [y/N] "
+read -r configure_now < /dev/tty 2>/dev/null || true
+if [[ "$configure_now" =~ ^[Yy]$ ]]; then
+  log_info "Running model configurator..."
+  if ! curl -fsSL "$BASE_URL/configure.sh" | bash; then
+    log_warn "Model configurator failed. You can run it later from the command below."
+  fi
+fi
+
 printf "%b\n" "${GREEN}${BOLD}Install complete.${NC}"
 printf "%b\n" "${BOLD}Next steps:${NC}"
 printf "  1) Edit %s/opencode.json with your API keys and server URLs.\n" "$CONFIG_DIR"
-printf "  2) Verify MCP server settings (megamemory).\n"
-printf "  3) Restart OpenCode.\n"
+printf "  2) Optionally run model configurator: curl -fsSL %s/configure.sh | bash\n" "$BASE_URL"
+printf "  3) Verify MCP server settings (megamemory).\n"
+printf "  4) Restart OpenCode.\n"

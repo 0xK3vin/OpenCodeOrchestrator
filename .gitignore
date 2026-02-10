@@ -1,5 +1,6 @@
 # Internal tool state - do not commit
 .megamemory/
+.osgrep/
 
 # Dependencies
 node_modules/

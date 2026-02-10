@@ -30,7 +30,7 @@ OpenCode Orchestrator uses role-specialized agents with focused prompts, scoped 
 - **Intelligent routing**: The orchestrator picks the right specialist automatically. Complex features go `plan -> build`; unclear failures go `debug -> build`.
 - **Review loop**: Non-trivial changes flow through `review`. If issues are found, they return to `build` until the quality gate passes.
 - **Persistent memory via megamemory**: A project knowledge graph survives across sessions; the orchestrator queries before work and records after work.
-- **One-line install**: `curl -fsSL https://raw.githubusercontent.com/0xkevin/OpenCodeOrchastrator/main/install.sh | bash`
+- **One-line install**: `curl -fsSL https://raw.githubusercontent.com/0xK3vin/OpenCodeOrchastrator/main/install.sh | bash`
 
 ## Workflow Examples
 
@@ -117,6 +117,7 @@ Why it matters: you stop re-explaining your codebase every new session.
 OpenCodeOrchastrator/
 ├── README.md
 ├── install.sh
+├── configure.sh
 ├── LICENSE
 ├── config/
 │   ├── opencode.json
@@ -151,7 +152,13 @@ Installed layout in `~/.config/opencode/`:
 One-line install:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/0xkevin/OpenCodeOrchastrator/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/0xK3vin/OpenCodeOrchastrator/main/install.sh | bash
+```
+
+Then configure model assignments (optional):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/0xK3vin/OpenCodeOrchastrator/main/configure.sh | bash
 ```
 
 Manual install:
@@ -167,8 +174,31 @@ Manual install:
 Post-install:
 
 - Edit `~/.config/opencode/opencode.json` with your real API keys.
+- Optionally run model configuration: `curl -fsSL https://raw.githubusercontent.com/0xK3vin/OpenCodeOrchastrator/main/configure.sh | bash`
 - Configure/enable MCP servers you want to use.
 - Restart OpenCode.
+
+## Model Configuration
+
+Use the interactive configurator:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/0xK3vin/OpenCodeOrchastrator/main/configure.sh | bash
+```
+
+Presets available:
+
+- `Recommended`: Opus reasoning, Sonnet execution, Codex coding (default profile).
+- `All Claude`: Opus reasoning and Sonnet for execution/coding.
+- `All OpenAI`: o3 reasoning, GPT-4.1 execution, Codex coding.
+- `All Google`: Gemini Pro reasoning/coding with Gemini Flash execution.
+- `Budget`: Sonnet everywhere.
+- `Custom`: choose models interactively.
+
+Custom mode supports both:
+
+- Per-tier model selection (Reasoning, Execution, Coding).
+- Per-agent model selection across all 7 agents.
 
 ## Configuration
 
