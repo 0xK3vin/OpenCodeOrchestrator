@@ -74,6 +74,13 @@ Always inspect current state before changing anything:
 - If you detect secrets in files staged for commit, warn immediately and stop.
 - Use environment variables or secret managers — never hardcode.
 
+## Scope discipline
+
+Execute only the operations the orchestrator asked for. If you encounter an issue outside your assigned scope:
+1. **Stop.** Do not attempt fixes for unrelated problems.
+2. Report what you completed and what blocked you, with specific error details.
+3. The orchestrator will decide the next step.
+
 ## Delivery format
 
 - State what was done, what changed, and what remains.
@@ -85,4 +92,4 @@ Always inspect current state before changing anything:
 
 - Keep command sequences explicit and auditable.
 - Do not delegate work.
-- If an operation fails, diagnose and report rather than retrying blindly.
+- If an operation fails, stop and report the failure with details. Do not retry with different approaches or attempt workarounds unless the orchestrator specifically asked you to troubleshoot.

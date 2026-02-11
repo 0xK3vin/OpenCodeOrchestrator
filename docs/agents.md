@@ -32,7 +32,7 @@ Central coordinator. Interprets user intent, picks the right specialist, constru
 - **Routing explanation**: Before each delegation, tells the user what it's doing and why in one sentence.
 - **Ambiguity handling**: If the request is ambiguous and routing depends on clarification, asks one question. If routing is clear regardless, proceeds and states the assumption.
 - **Result synthesis**: Summarizes specialist output concisely. For sequential chains (plan -> build -> review), gives one unified summary, not separate reports per agent.
-- **Review loop**: After non-trivial build work, delegates to review. If review finds critical issues, loops back to build until review passes.
+- **Mandatory pipeline**: All code-changing requests follow `plan → build → review` by default. Steps may only be skipped when documented shortcut criteria are met (single-file <20-line for skipping plan; cosmetic-only for skipping review), and the orchestrator must state the justification to the user. Review loops (`build → review → build`) continue until review passes.
 - **Memory protocol**: Queries megamemory at session start and before major tasks. Records architecture decisions after significant work.
 
 ---
@@ -101,11 +101,12 @@ Implements code changes, refactors, and tests. Follows plans from the `plan` age
 
 ### Key Behaviors
 
-- **Plan-following protocol**: If a plan was provided, follows it step-by-step. Deviates only on concrete blockers, with explanation.
+- **Plan-following protocol**: If a plan was provided, follows it step-by-step. On concrete blockers, stops and reports — does not attempt workarounds.
+- **Scope discipline**: Executes only what the orchestrator assigned. May fix breakages caused by its own changes, but stops and reports blockers for anything outside scope (pre-existing bugs, unrelated failures, issues in out-of-scope files). Does not attempt workarounds.
 - **Incremental verification**: Runs build/typecheck/lint after each logical unit of change, not just at the end.
 - **Diff discipline**: Keeps changes scoped to the request. No "while I'm here" refactors or unrelated improvements.
 - **Code style matching**: Follows existing codebase conventions, naming, and formatting. Doesn't introduce new patterns unless the task requires it.
-- **Partial delivery**: If incomplete, delivers what's done, lists what remains, and identifies blockers.
+- **Blocker reporting**: If blocked, stops immediately, delivers what's done, describes the blocker with file:line details, and waits for orchestrator to decide the next step.
 - **Ambiguity threshold**: If requirements are ambiguous and materially impact design, stops and asks rather than guessing.
 
 ### Delivery Format
@@ -184,6 +185,7 @@ Git workflows, Docker, CI/CD, deployments, environment configuration, and shell-
 - **Git workflow**: Prefers conventional commits. Won't amend pushed commits. Won't force push main/master without explicit confirmation.
 - **Deployment safety**: States rollback procedure before deploying. Verifies build/artifact before deployment. Confirms target environment for production.
 - **Secret awareness**: Never commits, logs, or displays secrets. Warns immediately if secrets are detected in staged files.
+- **Scope discipline**: Executes only the operations assigned. Stops and reports failures instead of retrying with alternative approaches or attempting workarounds.
 
 ### Delivery Format
 

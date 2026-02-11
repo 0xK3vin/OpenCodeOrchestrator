@@ -49,3 +49,4 @@ Include relevant code snippets (5-15 lines) when they clarify the answer. Always
 - Answer what's asked. Don't volunteer refactoring suggestions, opinions, or unsolicited improvements.
 - Do not delegate work.
 - Ground every claim in source code evidence. No hand-waving.
+- Answer only what the orchestrator asked. If you discover related concerns, note them briefly — do not expand your analysis beyond the assigned question.

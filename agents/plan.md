@@ -73,3 +73,4 @@ If the request is too large for a single implementation pass:
 - Prefer minimal, reversible changes over ambitious rewrites.
 - Call out external dependencies, breaking changes, and migration needs.
 - If you don't have enough information to plan confidently, say what's missing rather than guessing.
+- Plan only what the orchestrator asked you to plan. If you discover related problems that should also be addressed, note them as follow-up items — do not expand the plan scope without being asked.

@@ -10,6 +10,8 @@ NC='\033[0m'
 
 CONFIG_DIR="$HOME/.config/opencode"
 BASE_URL="https://raw.githubusercontent.com/0xK3vin/OpenCodeOrchestrator/main"
+LOCAL_MODE=false
+REPO_DIR=""
 
 # anonymous install counter
 curl -fsSL "https://hitscounter.dev/api/hit?url=https%3A%2F%2Fgithub.com%2F0xK3vin%2FOpenCodeOrchestrator%2Finstall&count_bg=%2379C83D&title_bg=%23555555&icon=&icon_color=%23E7E7E7&title=installs&edge_flat=false" > /dev/null 2>&1 &
@@ -30,15 +32,55 @@ log_error() {
   printf "%b\n" "${RED}[error]${NC} $1"
 }
 
-download_file() {
+install_file() {
   local src="$1"
   local dest="$2"
 
-  if ! curl -fsSL "$src" -o "$dest"; then
-    log_error "Failed to download: $src"
-    exit 1
+  if [[ "$LOCAL_MODE" == true ]]; then
+    local local_src="$REPO_DIR/$src"
+    if [[ ! -f "$local_src" ]]; then
+      log_error "Local file not found: $local_src"
+      exit 1
+    fi
+    if ! cp "$local_src" "$dest"; then
+      log_error "Failed to copy local file: $local_src"
+      exit 1
+    fi
+  else
+    local remote_src="$BASE_URL/$src"
+    if ! curl -fsSL "$remote_src" -o "$dest"; then
+      log_error "Failed to download: $remote_src"
+      exit 1
+    fi
   fi
 }
+
+for arg in "$@"; do
+  case "$arg" in
+    --local)
+      LOCAL_MODE=true
+      ;;
+    -h|--help)
+      printf "Usage: %s [--local]\n" "$(basename "$0")"
+      printf "\n"
+      printf "  --local    Install files from your local repo checkout instead of GitHub.\n"
+      exit 0
+      ;;
+    *)
+      log_error "Unknown argument: $arg"
+      printf "Usage: %s [--local]\n" "$(basename "$0")"
+      exit 1
+      ;;
+  esac
+done
+
+if [[ "$LOCAL_MODE" == true ]]; then
+  REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  if [[ ! -d "$REPO_DIR/agents" || ! -d "$REPO_DIR/config" || ! -d "$REPO_DIR/commands" || ! -d "$REPO_DIR/docs" ]]; then
+    log_error "Local repo structure not found at $REPO_DIR. Expected agents/, config/, commands/, and docs/."
+    exit 1
+  fi
+fi
 
 printf "%b\n" "${BOLD}${BLUE}"
 printf "============================================================\n"
@@ -53,38 +95,44 @@ else
   log_warn "Continuing setup anyway so files are ready when OpenCode is installed."
 fi
 
+if [[ "$LOCAL_MODE" == true ]]; then
+  log_info "Install source: local repo at $REPO_DIR"
+else
+  log_info "Install source: GitHub ($BASE_URL)"
+fi
+
 log_info "Preparing config directories..."
 mkdir -p "$CONFIG_DIR" "$CONFIG_DIR/agents" "$CONFIG_DIR/commands" "$CONFIG_DIR/docs"
 
-log_info "Downloading core config files..."
-download_file "$BASE_URL/config/AGENTS.md" "$CONFIG_DIR/AGENTS.md"
-download_file "$BASE_URL/config/package.json" "$CONFIG_DIR/package.json"
+log_info "Installing core config files..."
+install_file "config/AGENTS.md" "$CONFIG_DIR/AGENTS.md"
+install_file "config/package.json" "$CONFIG_DIR/package.json"
 
 if [[ -f "$CONFIG_DIR/opencode.json" ]]; then
   log_warn "Existing opencode.json found. Keeping your current config."
-  download_file "$BASE_URL/config/opencode.json" "$CONFIG_DIR/opencode.json.example"
-  log_warn "Downloaded template to: $CONFIG_DIR/opencode.json.example"
+  install_file "config/opencode.json" "$CONFIG_DIR/opencode.json.example"
+  log_warn "Installed template to: $CONFIG_DIR/opencode.json.example"
 else
-  download_file "$BASE_URL/config/opencode.json" "$CONFIG_DIR/opencode.json"
+  install_file "config/opencode.json" "$CONFIG_DIR/opencode.json"
   log_success "Installed opencode.json template."
 fi
 
-log_info "Downloading agent prompts..."
+log_info "Installing agent prompts..."
 agents=(orchestrator build plan debug devops explore review)
 for agent in "${agents[@]}"; do
-  download_file "$BASE_URL/agents/$agent.md" "$CONFIG_DIR/agents/$agent.md"
+  install_file "agents/$agent.md" "$CONFIG_DIR/agents/$agent.md"
 done
 
-log_info "Downloading commands..."
+log_info "Installing commands..."
 commands=(bootstrap-memory save-memory)
 for cmd in "${commands[@]}"; do
-  download_file "$BASE_URL/commands/$cmd.md" "$CONFIG_DIR/commands/$cmd.md"
+  install_file "commands/$cmd.md" "$CONFIG_DIR/commands/$cmd.md"
 done
 
-log_info "Downloading docs..."
+log_info "Installing docs..."
 docs=(agents configuration workflows)
 for doc in "${docs[@]}"; do
-  download_file "$BASE_URL/docs/$doc.md" "$CONFIG_DIR/docs/$doc.md"
+  install_file "docs/$doc.md" "$CONFIG_DIR/docs/$doc.md"
 done
 
 if [[ -f "$CONFIG_DIR/package.json" ]]; then
@@ -99,10 +147,21 @@ if [[ -f "$CONFIG_DIR/package.json" ]]; then
 fi
 
 printf "\nWould you like to configure agent models now? [y/N] "
-read -r configure_now < /dev/tty 2>/dev/null || true
-if [[ "$configure_now" =~ ^[Yy]$ ]]; then
+configure_now=""
+if [[ -t 1 ]]; then
+  read -r configure_now < /dev/tty || true
+fi
+if [[ "${configure_now:-}" =~ ^[Yy]$ ]]; then
   log_info "Running model configurator..."
-  if ! curl -fsSL "$BASE_URL/configure.sh" | bash; then
+  if [[ "$LOCAL_MODE" == true ]]; then
+    if [[ -f "$REPO_DIR/configure.sh" ]]; then
+      if ! bash "$REPO_DIR/configure.sh"; then
+        log_warn "Model configurator failed. You can run it later from the command below."
+      fi
+    else
+      log_warn "Local configure.sh not found at: $REPO_DIR/configure.sh"
+    fi
+  elif ! curl -fsSL "$BASE_URL/configure.sh" | bash; then
     log_warn "Model configurator failed. You can run it later from the command below."
   fi
 fi
@@ -110,6 +169,10 @@ fi
 printf "%b\n" "${GREEN}${BOLD}Install complete.${NC}"
 printf "%b\n" "${BOLD}Next steps:${NC}"
 printf "  1) Edit %s/opencode.json with your API keys and server URLs.\n" "$CONFIG_DIR"
-printf "  2) Optionally run model configurator: curl -fsSL %s/configure.sh | bash\n" "$BASE_URL"
+if [[ "$LOCAL_MODE" == true ]]; then
+  printf "  2) Optionally run model configurator: bash %s/configure.sh\n" "$REPO_DIR"
+else
+  printf "  2) Optionally run model configurator: curl -fsSL %s/configure.sh | bash\n" "$BASE_URL"
+fi
 printf "  3) Verify MCP server settings (megamemory).\n"
 printf "  4) Restart OpenCode.\n"

@@ -28,6 +28,14 @@ Configure models (optional):
 curl -fsSL https://raw.githubusercontent.com/0xK3vin/OpenCodeOrchestrator/main/configure.sh | bash
 ```
 
+Install from a local clone (uses local files, including unpushed changes):
+
+```bash
+git clone https://github.com/0xK3vin/OpenCodeOrchestrator.git
+cd OpenCodeOrchestrator
+./install.sh --local
+```
+
 </div>
 
 ---

@@ -2,77 +2,97 @@
 
 How the orchestrator chains agents together for common tasks.
 
+## Default Pipeline
+
+The standard execution for any request that changes code is:
+
+  **plan → build → review**
+
+This is the default. The orchestrator follows it unless a specific shortcut exception applies, and must justify any deviation to the user.
+
 ## Core Patterns
 
-### Simple code change
-
-```
-User: "Add a loading spinner to the dashboard"
-Orchestrator: "Straightforward UI change — sending to build."
-  -> build: implements the spinner, runs tests
-Orchestrator: summarizes changes to user
-```
-
-One delegation, no plan needed. Used for small, well-defined tasks.
-
-### Complex feature
+### Standard workflow (default)
 
 ```
 User: "Add real-time notifications with WebSocket support"
-Orchestrator: "This needs architecture work first — sending to plan."
+Orchestrator: "Starting with planning — sending to plan."
   -> plan: produces implementation spec with file paths, interfaces, phased delivery
-Orchestrator: "Plan is ready. Sending to build."
+Orchestrator: "Plan is ready — sending to build."
   -> build: implements phase 1 following the plan step-by-step
-Orchestrator: "Build complete. Sending to review."
+Orchestrator: "Build complete — sending to review to verify."
   -> review: reads diff, runs tests/lint/types, checks against plan requirements
   -> returns PASS
 Orchestrator: unified summary to user
 ```
 
-The standard chain for non-trivial features: `plan -> build -> review`.
+This is the default chain for all code-changing requests: `plan → build → review`. The orchestrator does not report completion until review passes.
 
 ### Review loop (issues found)
 
 ```
-Orchestrator: "Build complete. Sending to review."
+Orchestrator: "Build complete — sending to review."
   -> review: finds critical issue — missing null check in WebSocket handler
   -> returns ISSUES FOUND with file:line details
-Orchestrator: "Review found issues. Sending back to build."
+Orchestrator: "Review found issues — sending back to build."
   -> build: fixes the null check, re-runs tests
-Orchestrator: "Fix applied. Sending to review again."
+Orchestrator: "Fix applied — sending to review again."
   -> review: re-checks, all clean
   -> returns PASS
 Orchestrator: unified summary to user
 ```
 
-The orchestrator loops `build -> review` until review passes or the user decides to accept as-is.
+The orchestrator loops `build → review` until review passes or the user decides to accept as-is.
 
 ### Bug with unclear cause
 
 ```
 User: "The checkout flow is returning 500 errors intermittently"
-Orchestrator: "Unclear failure — sending to debug to isolate root cause."
+Orchestrator: "Unclear failure — sending to debug to isolate root cause first."
   -> debug: traces execution, finds race condition in inventory check
   -> returns diagnostic with evidence grade "confirmed"
-Orchestrator: "Root cause identified. Sending to build for the fix."
-  -> build: implements fix based on debug findings
+Orchestrator: "Root cause identified — sending to plan to design the fix."
+  -> plan: produces fix spec
+Orchestrator: "Plan ready — sending to build."
+  -> build: implements fix based on plan
+Orchestrator: "Build complete — sending to review."
   -> review: verifies fix
 Orchestrator: summary with root cause explanation + fix details
 ```
 
-Always diagnose before fixing when the cause is unclear: `debug -> build -> review`.
+Always diagnose before fixing when the cause is unclear: `debug → plan → build → review`.
 
 ### Bug with known cause
 
 ```
 User: "The date picker is off by one day due to timezone handling in utils/date.ts"
-Orchestrator: "Known bug with clear cause — sending directly to build."
+Orchestrator: "Known single-file bug — skipping plan, sending to build. Will review after."
   -> build: fixes timezone handling, runs tests
+Orchestrator: "Build complete — sending to review."
   -> review: verifies
 Orchestrator: summary
 ```
 
-Skip debug when the user already knows the cause.
+Skip debug when the user already knows the cause. Plan can be skipped only if the fix is confined to a single file, under ~20 lines, and unambiguous. Review still runs.
+
+### Blocker during build
+
+```
+Orchestrator: "Plan ready — sending to build."
+  -> build: implements first two steps, hits a pre-existing type error in a dependency
+  -> reports blocker: "Completed steps 1-2. Blocked at step 3 — UserService.getProfile()
+     returns `User | undefined` but the plan assumes it always returns `User`.
+     Did not attempt a workaround."
+Orchestrator: "Build hit a blocker — the plan needs adjustment. Sending back to plan."
+  -> plan: revises step 3 to handle the undefined case
+Orchestrator: "Revised plan ready — sending to build."
+  -> build: completes remaining steps
+Orchestrator: "Build complete — sending to review."
+  -> review: PASS
+Orchestrator: unified summary to user
+```
+
+Specialists stop and report blockers instead of improvising fixes. The orchestrator decides the next step.
 
 ### Codebase question
 
@@ -118,14 +138,30 @@ Orchestrator: "Two independent questions — sending to explore in parallel."
 Orchestrator: merged response organized by topic
 ```
 
-## When review is skipped
+## When steps are skipped
 
-The orchestrator skips the review step for:
-- Single-line fixes
-- Config/environment changes
-- Typo corrections
-- Comment/documentation updates
-- Changes the user explicitly says don't need review
+The orchestrator may skip pipeline steps only under strict conditions, and must tell the user which step is being skipped and why.
+
+### Skipping plan (`build → review`)
+
+Allowed only when ALL conditions are met:
+- The change is confined to a single file
+- The change is under ~20 lines
+- No new interfaces, types, or public APIs are introduced
+- The intent and approach are unambiguous
+
+### Skipping review (`build` only)
+
+Allowed only for purely cosmetic changes:
+- Typo corrections in strings, comments, or documentation
+- Whitespace or formatting adjustments
+- Comment additions or updates
+
+If any logic, behavior, interface, or API is touched — even minimally — review must run.
+
+### Never skip both plan AND review
+
+Unless the change is purely cosmetic (typo/comment only), at least one of plan or review must run. In practice, review runs for nearly everything.
 
 ## Delegation prompt quality
 

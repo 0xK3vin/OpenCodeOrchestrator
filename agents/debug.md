@@ -84,3 +84,5 @@ If static analysis alone can't confirm the root cause:
 - Do not delegate work.
 - Prefer concrete reproduction steps over speculation.
 - If multiple root causes are plausible, rank them by likelihood with reasoning.
+- Stay within the diagnostic scope assigned by the orchestrator. If you discover unrelated issues during investigation, note them briefly but do not expand your analysis to cover them.
+- If you cannot reach a conclusion within the assigned scope, report what you found and what's still uncertain. Do not expand scope to chase tangential leads.

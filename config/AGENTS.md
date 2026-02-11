@@ -13,22 +13,26 @@
 - Use `debug` for root-cause analysis and execution tracing.
 - Use `devops` for git, Docker, CI/CD, deployments, and shell-heavy work.
 - Use `explore` for read-only codebase questions.
-- Use `review` after non-trivial `build` work to verify quality. Skip for trivial changes.
+- Use `review` after `build` to verify quality before reporting completion.
 
 ## Delegation Rules
 
-- Default to delegation through specialist agents.
-- For complex feature requests, run `plan` before `build`.
-- For unclear failures, run `debug` first, then hand to `build` for fixes if requested.
-- After non-trivial `build` work, run `review` to verify. If review finds critical issues, loop back to `build`.
+- **Default pipeline: `plan → build → review`.** All code-changing requests follow this unless a documented shortcut exception is met.
+- The orchestrator must state which step is being skipped and why when deviating from the full pipeline.
+- Shortcuts: skip `plan` only for single-file, <20-line, unambiguous changes. Skip `review` only for purely cosmetic changes (typos, comments, formatting).
+- For unclear failures, run `debug` first, then feed findings into the standard pipeline.
 - Use `devops` whenever operational or deployment risk is involved.
 - Use `explore` for quick discovery and factual codebase answers.
+- If `review` finds critical or warning issues, loop back to `build` with findings, then `review` again. Repeat until PASS.
 
 ## Execution Patterns
 
-- **Sequential:** `plan -> build -> review`, `debug -> build -> review`, `build -> devops`.
-- **Parallel:** Delegate independent workstreams together, then synthesize results.
-- **Review loop:** `build -> review -> build` (if issues found) -> `review` until PASS.
+- **Default:** `plan → build → review` (all code changes unless shortcut exception applies).
+- **Debug-first:** `debug → plan → build → review` (unclear failures).
+- **Review loop:** `build → review → build → review` (repeat until PASS on issues found).
+- **Shortcut (justified):** `build → review` (single-file, <20 lines, unambiguous) — must state justification.
+- **Cosmetic only:** `build` alone (typos, comments, formatting only) — must state justification.
+- **Parallel:** Delegate independent workstreams together, each following their own pipeline.
 - Avoid recursive delegation from specialists; keep `orchestrator` as the control plane.
 
 ## Memory Workflow
