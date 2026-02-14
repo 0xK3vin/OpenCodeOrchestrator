@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-trap 'printf "\nAborted. No changes made.\n"; exit 1' INT TERM
+cleanup_term() {
+  printf '\e[?25h' >&2
+}
+trap 'cleanup_term; printf "\n  \033[0;31mAborted. No changes made.\033[0m\n"; exit 1' INT TERM
+trap 'cleanup_term' EXIT
 
-# Ensure reads come from terminal, not pipe (for curl | bash usage)
-exec 3</dev/tty 2>/dev/null || exec 3<&0
+{ exec 3</dev/tty; } 2>/dev/null || exec 3<&0
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -15,10 +18,17 @@ MAGENTA='\033[0;35m'
 BOLD='\033[1m'
 DIM='\033[2m'
 NC='\033[0m'
+BOLD_CYAN='\033[1;36m'
+BOLD_GREEN='\033[1;32m'
+BOLD_MAGENTA='\033[1;35m'
+BOLD_YELLOW='\033[1;33m'
+BOLD_WHITE='\033[1;37m'
+GRAY='\033[38;5;245m'
+DARK_GRAY='\033[38;5;240m'
+WHITE='\033[0;37m'
 
 CONFIG_DIR="$HOME/.config/opencode"
 AGENTS_DIR="$CONFIG_DIR/agents"
-
 AGENTS=(orchestrator plan build debug devops explore review)
 REASONING_AGENTS=(orchestrator plan debug review)
 EXECUTION_AGENTS=(devops explore)
@@ -30,21 +40,10 @@ else
     sed_inplace() { sed -i "$@"; }
 fi
 
-log_info() {
-  printf "%b\n" "${BLUE}[info]${NC} $1"
-}
-
-log_warn() {
-  printf "%b\n" "${YELLOW}[warn]${NC} $1"
-}
-
-log_success() {
-  printf "%b\n" "${GREEN}[ok]${NC} $1"
-}
-
-log_error() {
-  printf "%b\n" "${RED}[error]${NC} $1"
-}
+log_info()    { printf "  %b\n" "${BLUE}ℹ${NC} $1" >&2; }
+log_warn()    { printf "  %b\n" "${BOLD_YELLOW}⚠${NC} $1" >&2; }
+log_success() { printf "  %b\n" "${BOLD_GREEN}✓${NC} $1" >&2; }
+log_error()   { printf "  %b\n" "${RED}✗${NC} $1" >&2; }
 
 in_array() {
   local needle="$1"
@@ -78,77 +77,170 @@ set_model() {
   sed_inplace "s|^model:[[:space:]]*.*$|model: $model_string|" "$agent_file"
 }
 
-prompt_choice() {
-  local prompt_text="$1"
+arrow_select() {
+  local title="$1"
   shift
   local options=("$@")
-  local input
-  local idx
+  local count=${#options[@]}
+  local current=0
+  local key
+  local i
+
+  printf "\n%b\n\n" "${BOLD_CYAN}  ${title}${NC}" >&2
+  printf '\e[?25l' >&2
+
+  for i in "${!options[@]}"; do
+    if (( i == current )); then
+      printf "%b\n" "  ${BOLD_CYAN}▸ ${options[$i]}${NC}" >&2
+    else
+      printf "%b\n" "  ${GRAY}  ${options[$i]}${NC}" >&2
+    fi
+  done
 
   while true; do
-    printf "\n%b\n" "${BOLD}$prompt_text${NC}"
-    idx=1
-    for option in "${options[@]}"; do
-      printf "  %d) %s\n" "$idx" "$option"
-      idx=$((idx + 1))
-    done
-    printf "\nSelect an option [1-%d]: " "${#options[@]}"
-    read -r input <&3
-
-    if [[ "$input" =~ ^[0-9]+$ ]] && (( input >= 1 && input <= ${#options[@]} )); then
-      CHOICE="$input"
-      return 0
+    IFS= read -rsn1 key <&3
+    if [[ "$key" == $'\e' ]]; then
+      IFS= read -rsn2 -t 1 key <&3 || true
+      case "$key" in
+        '[A'|'OA') { (( current > 0 )) && (( current-- )); } || true ;;
+        '[B'|'OB') { (( current < count - 1 )) && (( current++ )); } || true ;;
+      esac
+    elif [[ "$key" == "" ]]; then
+      break
+    elif [[ "$key" == "k" ]]; then
+      { (( current > 0 )) && (( current-- )); } || true
+    elif [[ "$key" == "j" ]]; then
+      { (( current < count - 1 )) && (( current++ )); } || true
     fi
 
-    log_warn "Invalid selection. Please enter a number between 1 and ${#options[@]}."
+    printf "\e[%dA" "$count" >&2
+    for i in "${!options[@]}"; do
+      printf '\e[2K' >&2
+      if (( i == current )); then
+        printf "%b\n" "  ${BOLD_CYAN}▸ ${options[$i]}${NC}" >&2
+      else
+        printf "%b\n" "  ${GRAY}  ${options[$i]}${NC}" >&2
+      fi
+    done
   done
+
+  printf '\e[?25h' >&2
+  CHOICE=$(( current + 1 ))
+}
+
+arrow_select_described() {
+  local title="$1"
+  shift
+  local names=()
+  local descs=()
+  while (( $# >= 2 )); do
+    names+=("$1")
+    descs+=("$2")
+    shift 2
+  done
+  local count=${#names[@]}
+  local current=0
+  local key
+  local i
+  local total_lines=$(( count * 2 ))
+
+  printf "\n%b\n\n" "${BOLD_CYAN}  ${title}${NC}" >&2
+  printf '\e[?25l' >&2
+
+  for i in "${!names[@]}"; do
+    if (( i == current )); then
+      printf "%b\n" "  ${BOLD_CYAN}▸ ${names[$i]}${NC}" >&2
+      printf "%b\n" "    ${CYAN}${descs[$i]}${NC}" >&2
+    else
+      printf "%b\n" "  ${GRAY}  ${names[$i]}${NC}" >&2
+      printf "%b\n" "    ${DARK_GRAY}${descs[$i]}${NC}" >&2
+    fi
+  done
+
+  while true; do
+    IFS= read -rsn1 key <&3
+    if [[ "$key" == $'\e' ]]; then
+      IFS= read -rsn2 -t 1 key <&3 || true
+      case "$key" in
+        '[A'|'OA') { (( current > 0 )) && (( current-- )); } || true ;;
+        '[B'|'OB') { (( current < count - 1 )) && (( current++ )); } || true ;;
+      esac
+    elif [[ "$key" == "" ]]; then
+      break
+    elif [[ "$key" == "k" ]]; then
+      { (( current > 0 )) && (( current-- )); } || true
+    elif [[ "$key" == "j" ]]; then
+      { (( current < count - 1 )) && (( current++ )); } || true
+    fi
+
+    printf "\e[%dA" "$total_lines" >&2
+    for i in "${!names[@]}"; do
+      printf '\e[2K' >&2
+      if (( i == current )); then
+        printf "%b\n" "  ${BOLD_CYAN}▸ ${names[$i]}${NC}" >&2
+      else
+        printf "%b\n" "  ${GRAY}  ${names[$i]}${NC}" >&2
+      fi
+      printf '\e[2K' >&2
+      if (( i == current )); then
+        printf "%b\n" "    ${CYAN}${descs[$i]}${NC}" >&2
+      else
+        printf "%b\n" "    ${DARK_GRAY}${descs[$i]}${NC}" >&2
+      fi
+    done
+  done
+
+  printf '\e[?25h' >&2
+  CHOICE=$(( current + 1 ))
+}
+
+styled_confirm() {
+  local prompt_text="$1"
+  local answer
+  printf "\n%b %b " "  ${BOLD_CYAN}▸${NC} ${BOLD}${prompt_text}${NC}" "${DIM}[Y/n]${NC}" >&2
+  read -r answer <&3
+  answer="$(trim_whitespace "$answer")"
+  [[ ! "$answer" =~ ^[Nn]$ ]]
 }
 
 prompt_custom_model() {
   local context="$1"
   local model_string
-
   while true; do
-    printf "Enter custom model for %s (format provider/model): " "$context"
+    printf "\n%b " "  ${BOLD_CYAN}▸${NC} ${BOLD}Enter custom model for ${context}${NC} ${DIM}(provider/model):${NC}" >&2
     read -r model_string <&3
     model_string="$(trim_whitespace "$model_string")"
-
     if [[ -z "$model_string" ]]; then
       log_warn "Model cannot be empty."
       continue
     fi
-
     if [[ "$model_string" != */* ]]; then
       log_warn "Model must include '/'. Example: provider/model-name"
       continue
     fi
-
     CHOICE="$model_string"
     return 0
   done
 }
 
-pick_from_model_list() {
-  local context="$1"
-  local custom_index="$2"
-  shift 2
-  local models=("$@")
-  local choice_index
-
-  prompt_choice "$context" "${models[@]}"
-  choice_index="$CHOICE"
-
-  if (( choice_index == custom_index )); then
-    prompt_custom_model "$context"
-  else
-    CHOICE="${models[$((choice_index - 1))]}"
-  fi
-}
-
 show_banner() {
-  printf "%b\n" "${BOLD}${MAGENTA}============================================================${NC}"
-  printf "%b\n" "${BOLD}${CYAN}            OpenCode Orchestrator Configurator             ${NC}"
-  printf "%b\n" "${BOLD}${MAGENTA}============================================================${NC}"
+  local title="OpenCode Orchestrator Configurator"
+  local width=52
+  local pad_total=$(( width - ${#title} - 2 ))
+  local pad_left=$(( pad_total / 2 ))
+  local pad_right=$(( pad_total - pad_left ))
+  printf "\n"
+  printf "  %b" "${BOLD_MAGENTA}╭"
+  printf '─%.0s' $(seq 1 "$width")
+  printf "╮${NC}\n"
+  printf "  %b" "${BOLD_MAGENTA}│${NC}"
+  printf "%*s" "$pad_left" ""
+  printf " %b " "${BOLD_CYAN}${title}${NC}"
+  printf "%*s" "$pad_right" ""
+  printf "%b\n" "${BOLD_MAGENTA}│${NC}"
+  printf "  %b" "${BOLD_MAGENTA}╰"
+  printf '─%.0s' $(seq 1 "$width")
+  printf "╯${NC}\n"
 }
 
 verify_preflight() {
@@ -171,103 +263,71 @@ verify_preflight() {
 
 show_current_config() {
   local i
+  printf "\n%b\n" "  ${BOLD_WHITE}Current Model Configuration${NC}"
+  printf "%b\n\n" "  ${DARK_GRAY}$(printf '─%.0s' $(seq 1 50))${NC}"
 
-  printf "\n%b\n" "${BOLD}Current Model Configuration${NC}"
-  printf "%b\n\n" "${DIM}================================================================${NC}"
-
-  printf "  %b\n" "${BOLD}Reasoning Tier${NC}"
+  printf "  %b\n" "${BOLD_CYAN}Reasoning Tier${NC}"
   for i in "${!AGENTS[@]}"; do
     if in_array "${AGENTS[$i]}" "${REASONING_AGENTS[@]}"; then
-      printf "    %-12s  ·  %s\n" "${AGENTS[$i]}" "${CURRENT_MODELS[$i]}"
+      printf "  ${GRAY}  %-12s${NC}  ${WHITE}%s${NC}\n" "${AGENTS[$i]}" "${CURRENT_MODELS[$i]}"
     fi
   done
 
-  printf "\n  %b\n" "${BOLD}Execution Tier${NC}"
+  printf "\n  %b\n" "${BOLD_CYAN}Execution Tier${NC}"
   for i in "${!AGENTS[@]}"; do
     if in_array "${AGENTS[$i]}" "${EXECUTION_AGENTS[@]}"; then
-      printf "    %-12s  ·  %s\n" "${AGENTS[$i]}" "${CURRENT_MODELS[$i]}"
+      printf "  ${GRAY}  %-12s${NC}  ${WHITE}%s${NC}\n" "${AGENTS[$i]}" "${CURRENT_MODELS[$i]}"
     fi
   done
 
-  printf "\n  %b\n" "${BOLD}Coding Tier${NC}"
+  printf "\n  %b\n" "${BOLD_CYAN}Coding Tier${NC}"
   for i in "${!AGENTS[@]}"; do
     if in_array "${AGENTS[$i]}" "${CODING_AGENTS[@]}"; then
-      printf "    %-12s  ·  %s\n" "${AGENTS[$i]}" "${CURRENT_MODELS[$i]}"
+      printf "  ${GRAY}  %-12s${NC}  ${WHITE}%s${NC}\n" "${AGENTS[$i]}" "${CURRENT_MODELS[$i]}"
     fi
   done
 
-  printf "%b\n" "${DIM}================================================================${NC}"
+  printf "\n%b\n" "  ${DARK_GRAY}$(printf '─%.0s' $(seq 1 50))${NC}"
 }
 
 select_profile() {
   local profile
-
-  printf "\n%b\n" "${BOLD}Model Profiles${NC}"
-  printf "  1) Recommended  - Opus + Sonnet + Codex (current defaults)\n"
-  printf "     Reasoning: anthropic/claude-opus-4-6\n"
-  printf "     Execution: anthropic/claude-sonnet-4-20250514\n"
-  printf "     Coding:    openai/gpt-5.3-codex\n\n"
-  printf "  2) All Claude   - Opus reasoning, Sonnet everything else\n"
-  printf "     Reasoning: anthropic/claude-opus-4-6\n"
-  printf "     Execution: anthropic/claude-sonnet-4-20250514\n"
-  printf "     Coding:    anthropic/claude-sonnet-4-20250514\n\n"
-  printf "  3) All OpenAI   - o3 reasoning, GPT-4.1 execution, Codex coding\n"
-  printf "     Reasoning: openai/o3\n"
-  printf "     Execution: openai/gpt-4.1\n"
-  printf "     Coding:    openai/gpt-5.3-codex\n\n"
-  printf "  4) All Google   - Gemini Pro + Flash\n"
-  printf "     Reasoning: google/gemini-2.5-pro\n"
-  printf "     Execution: google/gemini-2.5-flash\n"
-  printf "     Coding:    google/gemini-2.5-pro\n\n"
-  printf "  5) Budget       - Sonnet everywhere\n"
-  printf "     Reasoning: anthropic/claude-sonnet-4-20250514\n"
-  printf "     Execution: anthropic/claude-sonnet-4-20250514\n"
-  printf "     Coding:    anthropic/claude-sonnet-4-20250514\n\n"
-  printf "  6) Custom       - Choose per-tier or per-agent\n"
-
-  prompt_choice "Choose a model profile" \
-    "Recommended" \
-    "All Claude" \
-    "All OpenAI" \
-    "All Google" \
-    "Budget" \
-    "Custom"
+  arrow_select_described "Select a Model Profile" \
+    "Recommended" "Opus reasoning · Sonnet execution · Codex coding" \
+    "All Claude" "Opus reasoning · Sonnet execution · Sonnet coding" \
+    "All OpenAI" "o3 reasoning · GPT-4.1 execution · Codex coding" \
+    "All Google" "Gemini Pro reasoning · Flash execution · Pro coding" \
+    "Budget" "Sonnet everywhere" \
+    "Custom" "Choose per-tier or per-agent"
   profile="$CHOICE"
-
   case "$profile" in
     1)
       REASONING_MODEL="anthropic/claude-opus-4-6"
       EXECUTION_MODEL="anthropic/claude-sonnet-4-20250514"
       CODING_MODEL="openai/gpt-5.3-codex"
-      apply_tier_models
-      ;;
+      apply_tier_models ;;
     2)
       REASONING_MODEL="anthropic/claude-opus-4-6"
       EXECUTION_MODEL="anthropic/claude-sonnet-4-20250514"
       CODING_MODEL="anthropic/claude-sonnet-4-20250514"
-      apply_tier_models
-      ;;
+      apply_tier_models ;;
     3)
       REASONING_MODEL="openai/o3"
       EXECUTION_MODEL="openai/gpt-4.1"
       CODING_MODEL="openai/gpt-5.3-codex"
-      apply_tier_models
-      ;;
+      apply_tier_models ;;
     4)
       REASONING_MODEL="google/gemini-2.5-pro"
       EXECUTION_MODEL="google/gemini-2.5-flash"
       CODING_MODEL="google/gemini-2.5-pro"
-      apply_tier_models
-      ;;
+      apply_tier_models ;;
     5)
       REASONING_MODEL="anthropic/claude-sonnet-4-20250514"
       EXECUTION_MODEL="anthropic/claude-sonnet-4-20250514"
       CODING_MODEL="anthropic/claude-sonnet-4-20250514"
-      apply_tier_models
-      ;;
+      apply_tier_models ;;
     6)
-      custom_mode
-      ;;
+      custom_mode ;;
   esac
 }
 
@@ -287,12 +347,10 @@ apply_tier_models() {
 
 custom_mode() {
   local mode
-
-  prompt_choice "Custom mode" \
-    "Per-tier (pick 3 models)" \
-    "Per-agent (pick all 7 individually)"
+  arrow_select "Custom Configuration Mode" \
+    "Per-tier  ─  Pick 3 models (reasoning, execution, coding)" \
+    "Per-agent ─  Pick all 7 individually"
   mode="$CHOICE"
-
   if (( mode == 1 )); then
     choose_custom_tier_models
     apply_tier_models
@@ -302,10 +360,10 @@ custom_mode() {
 }
 
 choose_custom_tier_models() {
-  local model_options
+  local model_options selected
 
   model_options=(
-    "anthropic/claude-opus-4-6 (Recommended)"
+    "anthropic/claude-opus-4-6           (Recommended)"
     "anthropic/claude-sonnet-4-20250514"
     "openai/o3"
     "openai/o4-mini"
@@ -316,11 +374,19 @@ choose_custom_tier_models() {
     "meta/llama-4-maverick"
     "Enter custom model"
   )
-  pick_from_model_list "Reasoning tier model" 10 "${model_options[@]}"
-  REASONING_MODEL="${CHOICE%% (Recommended)}"
+  arrow_select "Reasoning Tier Model" "${model_options[@]}"
+  selected="$CHOICE"
+  if (( selected == ${#model_options[@]} )); then
+    prompt_custom_model "reasoning tier"
+    REASONING_MODEL="$CHOICE"
+  else
+    REASONING_MODEL="${model_options[$((selected - 1))]}"
+    REASONING_MODEL="${REASONING_MODEL%% (*}"
+    REASONING_MODEL="$(trim_whitespace "$REASONING_MODEL")"
+  fi
 
   model_options=(
-    "anthropic/claude-sonnet-4-20250514 (Recommended)"
+    "anthropic/claude-sonnet-4-20250514  (Recommended)"
     "anthropic/claude-haiku-3-5-20241022"
     "openai/gpt-4.1"
     "openai/gpt-4.1-mini"
@@ -332,11 +398,19 @@ choose_custom_tier_models() {
     "meta/llama-4-scout"
     "Enter custom model"
   )
-  pick_from_model_list "Execution tier model" 11 "${model_options[@]}"
-  EXECUTION_MODEL="${CHOICE%% (Recommended)}"
+  arrow_select "Execution Tier Model" "${model_options[@]}"
+  selected="$CHOICE"
+  if (( selected == ${#model_options[@]} )); then
+    prompt_custom_model "execution tier"
+    EXECUTION_MODEL="$CHOICE"
+  else
+    EXECUTION_MODEL="${model_options[$((selected - 1))]}"
+    EXECUTION_MODEL="${EXECUTION_MODEL%% (*}"
+    EXECUTION_MODEL="$(trim_whitespace "$EXECUTION_MODEL")"
+  fi
 
   model_options=(
-    "openai/gpt-5.3-codex (Recommended)"
+    "openai/gpt-5.3-codex                (Recommended)"
     "anthropic/claude-sonnet-4-20250514"
     "anthropic/claude-opus-4-6"
     "openai/gpt-4.1"
@@ -346,17 +420,20 @@ choose_custom_tier_models() {
     "qwen/qwen-3-coder"
     "Enter custom model"
   )
-  pick_from_model_list "Coding tier model" 9 "${model_options[@]}"
-  CODING_MODEL="${CHOICE%% (Recommended)}"
+  arrow_select "Coding Tier Model" "${model_options[@]}"
+  selected="$CHOICE"
+  if (( selected == ${#model_options[@]} )); then
+    prompt_custom_model "coding tier"
+    CODING_MODEL="$CHOICE"
+  else
+    CODING_MODEL="${model_options[$((selected - 1))]}"
+    CODING_MODEL="${CODING_MODEL%% (*}"
+    CODING_MODEL="$(trim_whitespace "$CODING_MODEL")"
+  fi
 }
 
 choose_custom_agent_models() {
-  local all_models
-  local i
-  local agent
-  local current
-  local options=()
-  local option
+  local all_models i agent current options option selected
 
   all_models=(
     "anthropic/claude-opus-4-6"
@@ -387,64 +464,52 @@ choose_custom_agent_models() {
     current="${CURRENT_MODELS[$i]}"
     options=()
 
-    printf "\n%b\n" "${BOLD}${agent}${NC} ${DIM}(current: ${current})${NC}"
     for option in "${all_models[@]}"; do
       if [[ "$option" == "$current" ]]; then
-        options+=("$option (current)")
+        options+=("$option  (current)")
       else
         options+=("$option")
       fi
     done
     options+=("Enter custom model")
 
-    prompt_choice "Select model for ${agent}" "${options[@]}"
+    arrow_select "${agent}  ${DIM}(current: ${current})${NC}" "${options[@]}"
+    selected="$CHOICE"
 
-    if (( CHOICE == ${#options[@]} )); then
+    if (( selected == ${#options[@]} )); then
       prompt_custom_model "$agent"
       PROPOSED_MODELS[$i]="$CHOICE"
     else
-      option="${all_models[$((CHOICE - 1))]}"
+      option="${all_models[$((selected - 1))]}"
       PROPOSED_MODELS[$i]="$option"
     fi
   done
 }
 
 show_confirmation() {
-  local i
-  local changes=0
+  local i changes=0
 
-  printf "\n%b\n" "${BOLD}Proposed Changes${NC}"
-  printf "%b\n" "${DIM}================================================================${NC}"
+  printf "\n%b\n" "  ${BOLD_WHITE}Proposed Changes${NC}"
+  printf "%b\n\n" "  ${DARK_GRAY}$(printf '─%.0s' $(seq 1 50))${NC}"
 
   for i in "${!AGENTS[@]}"; do
     if [[ "${CURRENT_MODELS[$i]}" == "${PROPOSED_MODELS[$i]}" ]]; then
-      printf "  %-12s  %s %b->%b %s\n" \
-        "${AGENTS[$i]}" \
-        "${CURRENT_MODELS[$i]}" \
-        "${DIM}" \
-        "${NC}" \
-        "${PROPOSED_MODELS[$i]}"
+      printf "  ${GRAY}  %-12s  %s${NC}\n" "${AGENTS[$i]}" "${CURRENT_MODELS[$i]}"
     else
       changes=$((changes + 1))
-      printf "  %-12s  %b%s%b %b->%b %b%s%b\n" \
-        "${AGENTS[$i]}" \
-        "${DIM}" \
-        "${CURRENT_MODELS[$i]}" \
-        "${NC}" \
-        "${YELLOW}" \
-        "${NC}" \
-        "${GREEN}" \
-        "${PROPOSED_MODELS[$i]}" \
-        "${NC}"
+      printf "  ${WHITE}  %-12s${NC}  ${DIM}%s${NC} ${BOLD_YELLOW}→${NC} ${BOLD_GREEN}%s${NC}\n" \
+        "${AGENTS[$i]}" "${CURRENT_MODELS[$i]}" "${PROPOSED_MODELS[$i]}"
     fi
   done
 
-  printf "%b\n" "${DIM}================================================================${NC}"
+  printf "\n%b\n" "  ${DARK_GRAY}$(printf '─%.0s' $(seq 1 50))${NC}"
 
   if (( changes == 0 )); then
     log_warn "No model changes selected."
     exit 0
   fi
+
+  printf "\n  %b\n" "${DIM}${changes} agent(s) will be updated${NC}"
 }
 
 backup_agents() {
@@ -475,9 +540,6 @@ apply_changes() {
 
 main() {
   local i
-  local proceed
-  local confirm
-
   show_banner
   verify_preflight
 
@@ -490,29 +552,23 @@ main() {
 
   show_current_config
 
-  printf "\nConfigure models? [Y/n] "
-  read -r proceed <&3
-  proceed="$(trim_whitespace "$proceed")"
-  if [[ "$proceed" =~ ^[Nn]$ ]]; then
-    printf "No changes made.\n"
+  if ! styled_confirm "Configure models?"; then
+    printf "\n  No changes made.\n"
     exit 0
   fi
 
   select_profile
   show_confirmation
 
-  printf "\nApply these changes? [Y/n] "
-  read -r confirm <&3
-  confirm="$(trim_whitespace "$confirm")"
-  if [[ "$confirm" =~ ^[Nn]$ ]]; then
-    printf "No changes made.\n"
+  if ! styled_confirm "Apply these changes?"; then
+    printf "\n  No changes made.\n"
     exit 0
   fi
 
   backup_agents
   apply_changes
 
-  printf "\n%b\n" "${GREEN}${BOLD}Done.${NC} Restart OpenCode to apply. Backup at: ${BACKUP_PATH}. To reconfigure, run this script again."
+  printf "\n  %b\n\n" "${BOLD_GREEN}✓ Done.${NC} Restart OpenCode to apply. Backup at: ${DIM}${BACKUP_PATH}${NC}"
 }
 
 main "$@"
