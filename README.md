@@ -60,7 +60,7 @@ A single general-purpose agent can do a little bit of everything, but it usually
 
 ## The Solution
 
-OpenCode Orchestrator uses role-specialized agents with focused prompts, scoped permissions, and model tiering for cost/capability balance. The orchestrator delegates to the right specialist, chains workflows automatically, and uses persistent megamemory context across sessions. You get better outcomes, lower operational risk, and less prompt micromanagement.
+OpenCode Orchestrator uses role-specialized agents with focused prompts, scoped permissions, and model tiering for cost/capability balance. The orchestrator delegates to the right specialist — sequentially or in parallel — chains workflows automatically, and uses persistent megamemory context across sessions. Free MCP servers provide web search, GitHub code search, and project memory without API keys. You get better outcomes, lower operational risk, and less prompt micromanagement.
 
 ## Architecture
 
@@ -73,6 +73,8 @@ OpenCode Orchestrator uses role-specialized agents with focused prompts, scoped 
 - **Specialized agents**: Each agent has a focused prompt tuned to one job, scoped permissions (e.g., `build` can edit while `plan` cannot), and a model selected for workload fit.
 - **Intelligent routing**: The orchestrator picks the right specialist automatically. Complex features go `plan -> build`; unclear failures go `debug -> build`.
 - **Review loop**: Non-trivial changes flow through `review`. If issues are found, they return to `build` until the quality gate passes.
+- **Parallel delegation**: The orchestrator dispatches independent workstreams simultaneously — e.g., two `explore` tasks or `plan` + `explore` in parallel — then synthesizes results.
+- **Free MCP servers**: Web search (exa), GitHub code search (grep_app), and persistent memory (megamemory) work out of the box with no API keys.
 - **Persistent memory via megamemory**: A project knowledge graph survives across sessions; the orchestrator queries before work and records after work.
 - **One-line install**: `curl -fsSL https://raw.githubusercontent.com/0xK3vin/OpenCodeOrchestrator/main/install.sh | bash`
 
@@ -128,6 +130,15 @@ You: "How does the auth middleware work?"
 ```text
 You: "Deploy to staging"
 -> orchestrator -> devops (verifies build, deploys, reports rollback procedure)
+```
+
+**Parallel research**
+
+```text
+You: "Compare our auth implementation against industry best practices"
+-> orchestrator -> explore (reads local auth code)     } parallel
+               -> explore (searches web via exa)       }
+               -> synthesizes findings into recommendation
 ```
 
 ## Megamemory Integration
@@ -260,6 +271,7 @@ For full configuration details, see `docs/configuration.md`.
 - **Bash deny list over allowlist**: broad utility with guardrails against accidental destructive commands.
 - **Orchestrator cannot edit**: enforces delegation discipline and clear responsibility boundaries.
 - **Review loop quality gate**: non-trivial changes are verified before completion.
+- **Parallel dispatch**: Independent workstreams are delegated simultaneously to reduce wall-clock time; the orchestrator synthesizes results after all branches complete.
 
 ## MCP Servers
 

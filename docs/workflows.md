@@ -138,6 +138,52 @@ Orchestrator: "Two independent questions — sending to explore in parallel."
 Orchestrator: merged response organized by topic
 ```
 
+### Parallel context gathering → plan
+
+```text
+User: "Refactor the notification system to use a message queue"
+Orchestrator: "Need to understand the current system first — sending three explores in parallel."
+  -> explore (task 1): current notification dispatch flow
+  -> explore (task 2): existing message queue infrastructure
+  -> explore (task 3): notification consumers and their interfaces
+Orchestrator: "Context gathered — merging findings and sending to plan."
+  -> plan: designs the refactor using combined context from all three explores
+Orchestrator: "Plan ready — sending to build."
+  -> build: implements the refactor
+Orchestrator: "Build complete — sending to review."
+  -> review: PASS
+Orchestrator: unified summary to user
+```
+
+Parallel explores feed into a single sequential pipeline: `explore ×3 (parallel) → plan → build → review`.
+
+### Parallel independent pipelines
+
+```text
+User: "Add CSV export to the reports page and add dark mode to the settings page"
+Orchestrator: "Two independent features touching different files — running both pipelines in parallel."
+  -> Pipeline A: plan → build → review (CSV export in src/reports/)
+  -> Pipeline B: plan → build → review (dark mode in src/settings/)
+Orchestrator: merged summary covering both features
+```
+
+Each pipeline runs independently. If pipeline B's review finds issues while pipeline A passes, the orchestrator reports A's completion and loops B's `build → review` separately.
+
+### Parallel debug investigations
+
+```text
+User: "Search is returning stale results and the export queue is backing up"
+Orchestrator: "Two unrelated failures — sending parallel debug investigations."
+  -> debug (task 1): investigates search staleness — finds missing cache invalidation
+  -> debug (task 2): investigates export queue — finds connection pool exhaustion
+Orchestrator: "Both root causes identified. Two independent fixes — running both fix pipelines in parallel."
+  -> Pipeline A: plan → build → review (cache invalidation fix)
+  -> Pipeline B: plan → build → review (connection pool fix)
+Orchestrator: merged summary with both root causes and fixes
+```
+
+Parallel debug findings can feed into parallel fix pipelines when the fixes are independent.
+
 ## When steps are skipped
 
 The orchestrator may skip pipeline steps only under strict conditions, and must tell the user which step is being skipped and why.

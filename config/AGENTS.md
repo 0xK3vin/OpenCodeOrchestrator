@@ -32,7 +32,9 @@
 - **Review loop:** `build → review → build → review` (repeat until PASS on issues found).
 - **Shortcut (justified):** `build → review` (single-file, <20 lines, unambiguous) — must state justification.
 - **Cosmetic only:** `build` alone (typos, comments, formatting only) — must state justification.
-- **Parallel:** Delegate independent workstreams together, each following their own pipeline.
+- **Parallel context:** Multiple `explore` or `debug` tasks with no dependency between them → fire simultaneously, merge results (e.g., gathering context from three modules before `plan`).
+- **Parallel pipelines:** Independent code changes → run full `plan → build → review` pipelines simultaneously when the workstreams share no files, types, or interfaces.
+- **Parallel + sequential:** Parallel context gathering → feed merged results into a single `plan` → sequential `build → review`.
 - Avoid recursive delegation from specialists; keep `orchestrator` as the control plane.
 
 ## Memory Workflow
