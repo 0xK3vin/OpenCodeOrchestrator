@@ -312,23 +312,31 @@ if [[ -f "$CONFIG_DIR/package.json" ]]; then
   fi
 fi
 
-printf "\nWould you like to configure agent models now? [y/N] "
-configure_now=""
-if [[ -t 1 ]]; then
-  read -r configure_now < /dev/tty || true
-fi
-if [[ "${configure_now:-}" =~ ^[Yy]$ ]]; then
-  log_info "Running model configurator..."
+if [[ "$IS_UPDATE" == true ]] && [[ "$FORCE_MODE" == false ]]; then
   if [[ "$LOCAL_MODE" == true ]]; then
-    if [[ -f "$REPO_DIR/configure.sh" ]]; then
-      if ! bash "$REPO_DIR/configure.sh"; then
-        log_warn "Model configurator failed. You can run it later from the command below."
+    log_info "Run model configurator later if needed: bash $REPO_DIR/configure.sh"
+  else
+    log_info "Run model configurator later if needed: curl -fsSL $BASE_URL/configure.sh | bash"
+  fi
+else
+  printf "\nWould you like to configure agent models now? [y/N] "
+  configure_now=""
+  if [[ -t 1 ]]; then
+    read -r configure_now < /dev/tty || true
+  fi
+  if [[ "${configure_now:-}" =~ ^[Yy]$ ]]; then
+    log_info "Running model configurator..."
+    if [[ "$LOCAL_MODE" == true ]]; then
+      if [[ -f "$REPO_DIR/configure.sh" ]]; then
+        if ! bash "$REPO_DIR/configure.sh"; then
+          log_warn "Model configurator failed. You can run it later from the command below."
+        fi
+      else
+        log_warn "Local configure.sh not found at: $REPO_DIR/configure.sh"
       fi
-    else
-      log_warn "Local configure.sh not found at: $REPO_DIR/configure.sh"
+    elif ! curl -fsSL "$BASE_URL/configure.sh" | bash; then
+      log_warn "Model configurator failed. You can run it later from the command below."
     fi
-  elif ! curl -fsSL "$BASE_URL/configure.sh" | bash; then
-    log_warn "Model configurator failed. You can run it later from the command below."
   fi
 fi
 
