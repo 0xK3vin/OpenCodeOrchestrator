@@ -14,6 +14,8 @@
   <a href="docs/agents.md">Docs</a>
 </p>
 
+</div>
+
 ---
 
 ### Quick Start
@@ -22,45 +24,32 @@
 curl -fsSL https://raw.githubusercontent.com/0xK3vin/OpenCodeOrchestrator/main/install.sh | bash
 ```
 
-#### Updating
-
-Re-running the installer is update-safe by default:
-
-- Existing agent `model:` values are preserved automatically.
-- If agent prompt body text was customized, the installer prompts you to resolve each conflict (overwrite, skip, or view diff).
-- In non-interactive environments (for example `curl ... | bash` in CI), agent prompt conflicts default to upstream content while preserving your `model:` values and keeping backups.
-
-Use `--force` for a clean overwrite of all installed files:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/0xK3vin/OpenCodeOrchestrator/main/install.sh | bash -s -- --force
-```
-
 Configure models (optional):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/0xK3vin/OpenCodeOrchestrator/main/configure.sh | bash
 ```
 
-Install from a local clone (uses local files, including unpushed changes):
-
-```bash
-git clone https://github.com/0xK3vin/OpenCodeOrchestrator.git
-cd OpenCodeOrchestrator
-./install.sh --local
-```
-
-</div>
-
 ---
 
 ## The Problem
 
-A single general-purpose agent can do a little bit of everything, but it usually does none of it exceptionally well. Planning, implementation, debugging, operations, and review need different constraints and different strengths. One prompt and one permission set for all tasks creates inconsistent quality and unnecessary risk.
+A single general-purpose agent can handle many tasks, but it rarely excels at all of them.
+
+- Planning, implementation, debugging, operations, and review need different constraints.
+- Those tasks also need different strengths and model behavior.
+- One shared prompt and one shared permission profile creates inconsistent quality.
+- That setup also increases operational risk.
 
 ## The Solution
 
-OpenCode Orchestrator uses role-specialized agents with focused prompts, scoped permissions, and model tiering for cost/capability balance. The orchestrator delegates to the right specialist — sequentially or in parallel — chains workflows automatically, and uses persistent megamemory context across sessions. Free MCP servers provide web search, GitHub code search, and project memory without API keys. You get better outcomes, lower operational risk, and less prompt micromanagement.
+OpenCode Orchestrator uses role-specialized agents with focused prompts, scoped permissions, and model tiering.
+
+- The orchestrator routes work to the right specialist.
+- It supports sequential and parallel delegation.
+- It chains workflows automatically and keeps persistent context with megamemory.
+- Free MCP servers add web search, GitHub code search, and project memory with no API keys.
+- The result is better output quality, lower risk, and less prompt micromanagement.
 
 ## Architecture
 
@@ -70,13 +59,12 @@ OpenCode Orchestrator uses role-specialized agents with focused prompts, scoped 
 
 ## Key Benefits
 
-- **Specialized agents**: Each agent has a focused prompt tuned to one job, scoped permissions (e.g., `build` can edit while `plan` cannot), and a model selected for workload fit.
-- **Intelligent routing**: The orchestrator picks the right specialist automatically. Complex features go `plan -> build`; unclear failures go `debug -> build`.
-- **Review loop**: Non-trivial changes flow through `review`. If issues are found, they return to `build` until the quality gate passes.
-- **Parallel delegation**: The orchestrator dispatches independent workstreams simultaneously — e.g., two `explore` tasks or `plan` + `explore` in parallel — then synthesizes results.
-- **Free MCP servers**: Web search (exa), GitHub code search (grep_app), and persistent memory (megamemory) work out of the box with no API keys.
-- **Persistent memory via megamemory**: A project knowledge graph survives across sessions; the orchestrator queries before work and records after work.
-- **One-line install**: `curl -fsSL https://raw.githubusercontent.com/0xK3vin/OpenCodeOrchestrator/main/install.sh | bash`
+- **Specialized agents**: One job per agent, with scoped permissions and model fit.
+- **Intelligent routing**: The orchestrator selects the right path, such as `plan -> build` or `debug -> build`.
+- **Review loop**: Non-trivial work goes through `review` until the quality gate passes.
+- **Parallel delegation**: Independent tracks run together, then results are synthesized.
+- **Free MCP servers**: `exa`, `grep_app`, and `megamemory` work out of the box with no API keys.
+- **Persistent memory**: Megamemory keeps architecture and decisions across sessions.
 
 ## Workflow Examples
 
@@ -88,15 +76,15 @@ OpenCode Orchestrator uses role-specialized agents with focused prompts, scoped 
 
 ```text
 You: "Add a loading spinner to the dashboard"
--> orchestrator -> build -> done
+  -> orchestrator -> build -> done
 ```
 
 **Complex feature (plan -> build -> review)**
 
 ```text
 You: "Add real-time notifications with WebSocket support"
--> orchestrator -> plan (architecture spec)
-                 -> build (implements following plan)
+  -> orchestrator -> plan   (architecture spec)
+                 -> build  (implements following plan)
                  -> review (verifies correctness)
                  -> PASS ✓
 ```
@@ -105,40 +93,40 @@ You: "Add real-time notifications with WebSocket support"
 
 ```text
 You: "The checkout flow returns 500 errors intermittently"
--> orchestrator -> debug (traces execution, finds race condition)
-                 -> build (implements fix)
+  -> orchestrator -> debug  (traces execution, finds race condition)
+                 -> build  (implements fix)
                  -> review -> PASS ✓
 ```
 
 **Review loop (issues found)**
 
 ```text
--> review finds missing null check
--> build fixes it
--> review again -> PASS ✓
+  -> review finds missing null check
+  -> build fixes it
+  -> review again -> PASS ✓
 ```
 
 **Codebase question**
 
 ```text
 You: "How does the auth middleware work?"
--> orchestrator -> explore (read-only analysis with file:line refs)
+  -> orchestrator -> explore (read-only analysis with file:line refs)
 ```
 
 **Deployment**
 
 ```text
 You: "Deploy to staging"
--> orchestrator -> devops (verifies build, deploys, reports rollback procedure)
+  -> orchestrator -> devops (verifies build, deploys, reports rollback procedure)
 ```
 
 **Parallel research**
 
 ```text
 You: "Compare our auth implementation against industry best practices"
--> orchestrator -> explore (reads local auth code)     } parallel
-               -> explore (searches web via exa)       }
-               -> synthesizes findings into recommendation
+  -> orchestrator -> explore (reads local auth code)   } parallel
+                 -> explore (searches web via exa)     }
+                 -> synthesizes findings into recommendation
 ```
 
 ## Megamemory Integration
@@ -160,9 +148,9 @@ Why it matters: you stop re-explaining your codebase every new session.
 
 ## Agent Reference
 
-| Agent | Role | Model | Can Edit | Can Bash | Can Delegate |
-|------|------|-------|----------|----------|--------------|
-| `orchestrator` | Primary router and synthesis layer | `anthropic/claude-opus-4-6` | No | Yes (deny list) | Yes (to specialists) |
+| Agent | Role | Model | Can Edit | Can Bash | Delegation |
+|------|------|-------|----------|----------|------------|
+| `orchestrator` | Primary router and synthesis layer | `anthropic/claude-opus-4-6` | No | Yes (deny list) | Specialists |
 | `plan` | Architecture/spec planning | `anthropic/claude-opus-4-6` | No | No | No |
 | `build` | Implementation and tests | `openai/gpt-5.3-codex` | Yes | Yes | No |
 | `debug` | Root-cause analysis | `anthropic/claude-opus-4-6` | No | Yes (deny list) | No |
@@ -234,6 +222,26 @@ Installed layout in `~/.config/opencode/`:
 
 ## Installation
 
+Updating is safe by default when you re-run the installer:
+
+- Existing agent `model:` values are preserved automatically.
+- If prompt body text was customized, you are prompted per conflict (overwrite, skip, or view diff).
+- In non-interactive environments (for example `curl ... | bash` in CI), conflicts default to upstream prompt bodies while preserving `model:` values and keeping backups.
+
+Use `--force` for a clean overwrite of all installed files:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/0xK3vin/OpenCodeOrchestrator/main/install.sh | bash -s -- --force
+```
+
+Install from a local clone (uses local files, including unpushed changes):
+
+```bash
+git clone https://github.com/0xK3vin/OpenCodeOrchestrator.git
+cd OpenCodeOrchestrator
+./install.sh --local
+```
+
 <details>
 <summary>Manual Install</summary>
 
@@ -250,28 +258,22 @@ Installed layout in `~/.config/opencode/`:
 Post-install:
 
 - Edit `~/.config/opencode/opencode.json` with your real API keys.
-- Optionally run model configuration: `curl -fsSL https://raw.githubusercontent.com/0xK3vin/OpenCodeOrchestrator/main/configure.sh | bash`
+- Optionally run the interactive configurator from [Model Configuration](#model-configuration).
 - Configure/enable MCP servers you want to use.
 - Restart OpenCode.
 
 ## Configuration
 
-For full configuration details, see `docs/configuration.md`.
-
-- The template sets `default_agent` to `orchestrator`, so OpenCode launches into the orchestrator by default.
-- **Model customization**: tune per-agent `model` values in `agents/*.md`.
-- **Permission tuning**: tighten or relax `read/edit/write/bash/task` permissions in frontmatter and `opencode.json`.
-- **Adding/removing agents**: update `agents/`, `opencode.json`, and orchestrator routing docs.
-- **MCP setup**: configure `mcp` entries in `opencode.json` for local or remote servers.
+For full configuration details, see `docs/configuration.md`. It covers default launch agent behavior, model/permission tuning, agent set changes, and MCP setup.
 
 ## Design Decisions
 
-- **Model tiering**: Opus for deep reasoning/review, Sonnet for operational/read-only tasks, Codex for code implementation.
-- **DRY tool docs**: tool behavior lives in global skill/tool prompts, not duplicated inside every agent prompt.
-- **Bash deny list over allowlist**: broad utility with guardrails against accidental destructive commands.
-- **Orchestrator cannot edit**: enforces delegation discipline and clear responsibility boundaries.
-- **Review loop quality gate**: non-trivial changes are verified before completion.
-- **Parallel dispatch**: Independent workstreams are delegated simultaneously to reduce wall-clock time; the orchestrator synthesizes results after all branches complete.
+- **Model tiering**: Opus for deep reasoning/review, Sonnet for operational/read-only tasks, and Codex for implementation.
+- **DRY tool docs**: Tool behavior lives in global skill/tool prompts, not inside every agent prompt.
+- **Bash deny list over allowlist**: Broad utility with guardrails against destructive commands.
+- **Orchestrator cannot edit**: Enforces delegation discipline and clear ownership boundaries.
+- **Review loop quality gate**: Non-trivial changes are verified before completion.
+- **Parallel dispatch**: Independent workstreams run simultaneously, then the orchestrator synthesizes results.
 
 ## MCP Servers
 
